@@ -2,9 +2,10 @@ from pandas import DataFrame
 from sklearn.base import clone, BaseEstimator, TransformerMixin
 from sklearn.utils import column_or_1d
 from sklearn2pmml.util import cast, eval_rows
-
 import numpy
 import pandas
+import logging
+
 
 class Alias(BaseEstimator, TransformerMixin):
 
@@ -36,6 +37,7 @@ def _count(mask):
 		"missingFreq" : missing_freq,
 		"invalidFreq" : (non_missing_freq - non_missing_freq) # A scalar zero, or an array of zeroes
 	}
+
 
 class Domain(BaseEstimator, TransformerMixin):
 
@@ -104,17 +106,25 @@ class Domain(BaseEstimator, TransformerMixin):
 			if self.invalid_value_replacement is not None:
 				X[where] = self.invalid_value_replacement
 		elif self.invalid_value_treatment == "as_missing":
+            logging.info('Domain.transform._transform_invalid_values._transform_missing_values()')
 			self._transform_missing_values(X, where)
 
 	def transform(self, X):
+        logging.info('Domain.transform()')
 		if self.dtype is not None:
+            logging.info('Domain.transform.cast()')
 			X = cast(X, self.dtype)
+        logging.info('Domain.transform._missing_value_mask()')
 		missing_value_mask = self._missing_value_mask(X)
 		nonmissing_value_mask = ~missing_value_mask
+        logging.info('Domain.transform._valid_value_mask()')
 		valid_value_mask = self._valid_value_mask(X, nonmissing_value_mask)
 		invalid_value_mask = ~numpy.logical_or(missing_value_mask, valid_value_mask)
+        logging.info('Domain.transform._transform_missing_values()')
 		self._transform_missing_values(X, missing_value_mask)
+        logging.info('Domain.transform._transform_valid_values()')
 		self._transform_valid_values(X, valid_value_mask)
+        logging.info('Domain.transform._transform_invalid_values()')
 		self._transform_invalid_values(X, invalid_value_mask)
 		return X
 
@@ -129,25 +139,35 @@ class DiscreteDomain(Domain):
 				if hasattr(x, "isin"):
 					return x.isin(self.data_)
 				return x in self.data_
+            logging.info('DiscreteDomain._valid_value_mask.eval_rows.START')
 			mask = eval_rows(X, is_valid, dtype = bool)
+            logging.info('DiscreteDomain._valid_value_mask.eval_rows.END')
 			mask = (numpy.asarray(mask, dtype = bool)).reshape(X.shape)
 			return numpy.logical_and(mask, where)
 		return super(DiscreteDomain, self)._valid_value_mask(X, where)
 
 	def fit(self, X, y = None):
+        logging.info('DiscreteDomain.fit()')
+        logging.info(f'type: {type(X)}')
+        logging.info(f'shape: {X.shape}')
 		X = column_or_1d(X, warn = True)
 		if self._empty_fit():
 			return self
 		if self.dtype is not None:
+            logging.info('DiscreteDomain.fit().cast()')
 			X = cast(X, self.dtype)
+        logging.info('DiscreteDomain.fit()._missing_value_mask()')
 		mask = self._missing_value_mask(X)
+        logging.info('DiscreteDomain.fit().numpy.unique()')
 		values, counts = numpy.unique(X[~mask], return_counts = True)
 		if self.with_data:
 			if (self.missing_value_replacement is not None) and numpy.any(mask) > 0:
+                logging.info('DiscreteDomain.fit().numpy.unique(numpy.append(values')
 				self.data_ = numpy.unique(numpy.append(values, self.missing_value_replacement))
 			else:
 				self.data_ = values
 		if self.with_statistics:
+            logging.info('DiscreteDomain.fit().with_statistics')
 			self.counts_ = _count(mask)
 			self.discr_stats_ = (values, counts)
 		return self
@@ -190,10 +210,13 @@ class ContinuousDomain(Domain):
 		return super(ContinuousDomain, self)._valid_value_mask(X, where)
 
 	def fit(self, X, y = None):
+        logging.info('ContinuousDomain.fit()')
 		if self._empty_fit():
 			return self
 		if self.dtype is not None:
+            logging.info('ContinuousDomain.fit().cast()')
 			X = cast(X, self.dtype)
+        logging.info('ContinuousDomain.fit()._missing_value_mask()')
 		mask = self._missing_value_mask(X)
 		X = numpy.ma.masked_array(X, mask = mask)
 		min = numpy.asarray(numpy.nanmin(X, axis = 0))
@@ -202,6 +225,7 @@ class ContinuousDomain(Domain):
 			self.data_min_ = min
 			self.data_max_ = max
 		if self.with_statistics:
+            logging.info('ContinuousDomain.fit().with_statistics')
 			self.counts_ = _count(mask)
 			X = numpy.ma.asarray(X, dtype = numpy.float).filled(float("NaN"))
 			self.numeric_info_ = {
@@ -227,7 +251,9 @@ class ContinuousDomain(Domain):
 		return numpy.logical_and(mask, where)
 
 	def _transform_valid_values(self, X, where):
+        logging.info('ContinuousDomain._transform_valid_values()')
 		if self.outlier_treatment == "as_missing_values":
+            logging.info('ContinuousDomain._transform_valid_values().as_missing_values')
 			mask = self._outlier_mask(X, where)
 			if self.missing_values is not None:
 				if type(self.missing_values) is list:
@@ -237,6 +263,7 @@ class ContinuousDomain(Domain):
 				X[mask] = None
 			self._transform_missing_values(X, mask)
 		elif self.outlier_treatment == "as_extreme_values":
+            logging.info('ContinuousDomain._transform_valid_values().as_extreme_values')
 			mask = self._negative_outlier_mask(X, where)
 			X[mask] = self.low_value
 			mask = self._positive_outlier_mask(X, where)

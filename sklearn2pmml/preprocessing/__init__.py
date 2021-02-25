@@ -6,10 +6,11 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from sklearn.utils import column_or_1d
 from sklearn2pmml.util import cast, eval_rows, dt_transform
-
 import numpy
 import pandas
 import warnings
+import logging
+
 
 def _regex_engine(pattern):
 	try:
@@ -32,6 +33,7 @@ def _int(X):
 		if isinstance(X, Series):
 			X = X.values
 		return X.astype(int)
+
 
 class Aggregator(BaseEstimator, TransformerMixin):
 
@@ -58,6 +60,7 @@ class Aggregator(BaseEstimator, TransformerMixin):
 		else:
 			raise ValueError(self.function)
 
+
 class CastTransformer(BaseEstimator, TransformerMixin):
 
 	def __init__(self, dtype):
@@ -72,6 +75,7 @@ class CastTransformer(BaseEstimator, TransformerMixin):
 
 	def transform(self, X):
 		return cast(X, self.dtype)
+
 
 class CutTransformer(BaseEstimator, TransformerMixin):
 
@@ -91,6 +95,7 @@ class CutTransformer(BaseEstimator, TransformerMixin):
 		if isinstance(Xt, Categorical):
 			Xt = numpy.asarray(Xt)
 		return _col2d(Xt)
+
 
 class DurationTransformer(BaseEstimator, TransformerMixin):
 
@@ -112,6 +117,7 @@ class DurationTransformer(BaseEstimator, TransformerMixin):
 			return _int(duration)
 		return dt_transform(X, to_int_duration)
 
+
 class DaysSinceYearTransformer(DurationTransformer):
 
 	def __init__(self, year):
@@ -120,6 +126,7 @@ class DaysSinceYearTransformer(DurationTransformer):
 	def _to_duration(self, td):
 		return td.days
 
+
 class SecondsSinceYearTransformer(DurationTransformer):
 
 	def __init__(self, year):
@@ -127,6 +134,7 @@ class SecondsSinceYearTransformer(DurationTransformer):
 
 	def _to_duration(self, td):
 		return td.total_seconds()
+
 
 class SecondsSinceMidnightTransformer(BaseEstimator, TransformerMixin):
 
@@ -145,6 +153,7 @@ class SecondsSinceMidnightTransformer(BaseEstimator, TransformerMixin):
 			duration = self._to_duration(dt - dt.normalize())
 			return _int(duration)
 		return dt_transform(X, to_int_duration)
+
 
 class ExpressionTransformer(BaseEstimator, TransformerMixin):
 
@@ -165,6 +174,7 @@ class ExpressionTransformer(BaseEstimator, TransformerMixin):
 			Xt = cast(Xt, self.dtype)
 		return _col2d(Xt)
 
+
 class IdentityTransformer(BaseEstimator, TransformerMixin):
 
 	def __init__(self):
@@ -175,6 +185,7 @@ class IdentityTransformer(BaseEstimator, TransformerMixin):
 
 	def transform(self, X):
 		return X
+
 
 class LookupTransformer(BaseEstimator, TransformerMixin):
 
@@ -206,6 +217,7 @@ class LookupTransformer(BaseEstimator, TransformerMixin):
 			Xt = numpy.array([func(row) for row in X])
 		return _col2d(Xt)
 
+
 class MultiLookupTransformer(LookupTransformer):
 
 	def __init__(self, mapping, default_value):
@@ -233,6 +245,7 @@ class MultiLookupTransformer(LookupTransformer):
 			Xt = numpy.array([func((numpy.squeeze(numpy.asarray(row))).tolist()) for row in X])
 		return _col2d(Xt)
 
+
 class PMMLLabelBinarizer(BaseEstimator, TransformerMixin):
 
 	def __init__(self, sparse_output = False):
@@ -257,21 +270,32 @@ class PMMLLabelBinarizer(BaseEstimator, TransformerMixin):
 			Xt = Xt.tocsr()
 		return Xt
 
+
 class PMMLLabelEncoder(BaseEstimator, TransformerMixin):
 
 	def __init__(self, missing_values = None):
+        logging.info('PMMLLabelEncoder.__init__()')
 		self.missing_values = missing_values
 
 	def fit(self, X, y = None):
+        logging.info('PMMLLabelEncoder.fit()')
+        logging.info(f'type: {type(X)}')
+        logging.info(f'shape: {X.shape}')
 		X = column_or_1d(X, warn = True)
 		self.classes_ = numpy.unique(X[~pandas.isnull(X)])
 		return self
 
 	def transform(self, X):
+        logging.info('PMMLLabelEncoder.transform()')
+        logging.info(f'type: {type(X)}')
+        logging.info(f'shape: {X.shape}')
 		X = column_or_1d(X, warn = True)
 		index = list(self.classes_)
+        logging.info('PMMLLabelEncoder.transform.START')
 		Xt = numpy.array([self.missing_values if pandas.isnull(v) else index.index(v) for v in X])
+        logging.info('PMMLLabelEncoder.transform.END')
 		return _col2d(Xt)
+
 
 class PowerFunctionTransformer(BaseEstimator, TransformerMixin):
 
@@ -286,6 +310,7 @@ class PowerFunctionTransformer(BaseEstimator, TransformerMixin):
 	def transform(self, X):
 		return numpy.power(X, self.power)
 
+
 class ConcatTransformer(BaseEstimator, TransformerMixin):
 
 	def __init__(self, separator = ""):
@@ -298,6 +323,7 @@ class ConcatTransformer(BaseEstimator, TransformerMixin):
 		func = lambda x: self.separator.join([str(v) for v in x])
 		Xt = eval_rows(X, func)
 		return _col2d(Xt)
+
 
 class MatchesTransformer(BaseEstimator, TransformerMixin):
 
@@ -315,6 +341,7 @@ class MatchesTransformer(BaseEstimator, TransformerMixin):
 		Xt = eval_rows(X, func)
 		return _col2d(Xt)
 
+
 class ReplaceTransformer(BaseEstimator, TransformerMixin):
 
 	def __init__(self, pattern, replacement):
@@ -331,6 +358,7 @@ class ReplaceTransformer(BaseEstimator, TransformerMixin):
 		func = lambda x: engine.sub(self.replacement, x)
 		Xt = eval_rows(X, func)
 		return _col2d(Xt)
+
 
 class SubstringTransformer(BaseEstimator, TransformerMixin):
 
@@ -352,6 +380,7 @@ class SubstringTransformer(BaseEstimator, TransformerMixin):
 		Xt = eval_rows(X, func)
 		return _col2d(Xt)
 
+
 class WordCountTransformer(BaseEstimator, TransformerMixin):
 
 	def __init__(self, word_pattern = "\w+", non_word_pattern = "\W+"):
@@ -370,6 +399,7 @@ class WordCountTransformer(BaseEstimator, TransformerMixin):
 	def transform(self, X):
 		X = column_or_1d(X, warn = True)
 		return self.pipeline_.transform(X)
+
 
 class StringNormalizer(BaseEstimator, TransformerMixin):
 

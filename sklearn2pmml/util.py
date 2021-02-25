@@ -1,7 +1,7 @@
-from pandas import Index, Series
-
 import numpy
 import pandas
+import logging
+
 
 def cast(X, dtype):
 	if isinstance(dtype, str) and dtype.startswith("datetime64"):
@@ -13,8 +13,11 @@ def cast(X, dtype):
 		return X.astype(dtype)
 
 def eval_rows(X, func, dtype = object):
+    logging.info(f'eval_rows. type(X): {type(X)}')
 	if hasattr(X, "apply"):
+        logging.info('eval_rows.X.apply')
 		return X.apply(func, axis = 1)
+    logging.info('eval_rows.func')
 	nrow = X.shape[0]
 	Xt = numpy.empty(shape = (nrow, ), dtype = dtype)
 	for i in range(0, nrow):
@@ -28,7 +31,7 @@ def dt_transform(X, func):
 	if len(shape) > 1:
 		X = X.ravel()
 	Xt = func(X)
-	if isinstance(Xt, Index):
+	if isinstance(Xt, pandas.Index):
 		Xt = Xt.values
 	if len(shape) > 1:
 		Xt = Xt.reshape(shape)
