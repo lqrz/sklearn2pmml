@@ -125,21 +125,9 @@ class DiscreteDomain(Domain):
 
 	def _valid_value_mask(self, X, where):
 		if hasattr(self, "data_"):
-			def is_valid(x):
-				if hasattr(x, "isin"):
-					return x.isin(self.data_)
-				return x in self.data_
-				
+			def is_valid(x): return x.isin(self.data_) if hasattr(x, "isin") else x in self.data_
 			# use pandas vectorised func
-            mask = None
-            if isinstance(X, pandas.Series):
-                mask = X.isin(self.data_).values
-            elif isinstance(X, pandas.DataFrame):
-                mask = X.isin(self.data_).values
-            else:
-                mask = eval_rows(X, is_valid, dtype = bool)
-            assert(mask is not None)
-
+			mask = X.isin(self.data_).values if isinstance(X, pandas.Series) or isinstance(X, pandas.DataFrame) else eval_rows(X, is_valid, dtype = bool)
 			mask = (numpy.asarray(mask, dtype = bool)).reshape(X.shape)
 			return numpy.logical_and(mask, where)
 		return super(DiscreteDomain, self)._valid_value_mask(X, where)
